@@ -1,87 +1,75 @@
-# Optical-to-NIR Spectra Reconstruction for Trans-Neptunian Objects (TNOs)
+# TNO Reflectance Spectra Reconstructor from Optical Colors
 
-This repository contains a machine learning framework designed to reconstruct full-resolution reflectance spectra (from $0.4\ \mu\text{m}$ to $5.1\ \mu\text{m}$) of Trans-Neptunian Objects (TNOs) and asteroids from sparse magnitude colors (such as LSST `g-r`, `r-i`, `i-z`, `r-z` or DES `g-r`, `r-z`) with uncertainty quantification.
-
----
-
-## 🌌 Scientific Goal
-
-The primary scientific objective of this project is to quantify how much information optical photometry (e.g., from the Vera C. Rubin Observatory / LSST) contains about the infrared spectral properties of TNOs. By mapping sparse colors to full-resolution spectra, we can:
-1. Interpolate and reconstruct NIR spectral properties for large photometric surveys.
-2. Quantify reconstruction certainty using information-theoretic metrics (e.g., Entropy, Information Gain, KL Divergence).
-3. Detect rare/novel spectral types to prioritize targets for future space telescope follow-ups (e.g., JWST).
+This repository provides a reusable software package and AI skill for **optical-color-to-spectral inference** of Trans-Neptunian Objects (TNOs) and asteroids. It includes:
+- **Trained PCA Spectral Manifold**: Latent space representation and Kernel Density Estimation (KDE) prior (`base_pca_kde.pkl`).
+- **Bayesian Inference Pipeline**: Regressors mapping broadband magnitude colors (LSST or DES) to full-resolution reflectance spectra ($0.4\ \mu\text{m}$ to $5.1\ \mu\text{m}$) with uncertainty bounds.
+- **Spectral & Photometric Generation Utilities**: Modules for sampling posterior spectral distributions, reconstructing reflectance spectra, and generating synthetic optical color distributions via reverse projection.
 
 ---
 
-## 🛠️ Methodology
+## 🛠️ Package Directory Structure
 
-The reconstruction framework operates in a low-dimensional latent space:
-
-1. **Dimensionality Reduction**: Principal Component Analysis (PCA) is applied to high-resolution reference spectra (10 components).
-2. **Latent Space Modeling**: A Gaussian copula / Kernel Density Estimation (KDE) model learns the joint distribution of the PC coefficients.
-3. **Color-to-Latent Mapping**: Regressors (AutoGluon Tabular / LightGBM) are trained to map observed photometry colors directly to PCA coefficients.
-4. **Uncertainty Quantification**: Monte Carlo (MC) realizations propagate input photometric uncertainties to output spectra, producing:
-   - Median reflectance spectra
-   - $1\sigma$ (68%) confidence bands
-   - $90\%$ confidence bands
-   - Latent space posteriors and information metrics
-
----
-
-## 📂 Repository Structure
-
-- `src/`: Python source code containing training, reconstruction, and experiment scripts.
-  - `reconstruct_spectra.py`: Core pipeline logic for loading models and executing reconstructions.
-  - `spectra_generator.py`: PCA-based spectrum generation using KDE sampling.
-  - `train_and_evaluate.py`: Training script for the AutoGluon regressors.
-  - `metrics.py`: Script to compute information metrics (Entropy, KL Divergence, etc.).
-- `notebook/`: Jupyter notebooks showing model training and verification workflows.
-  - `reconstructor.ipynb`: Walkthrough of the training and reconstruction process.
-  - `validation.ipynb`: Validation and diagnostic checks.
-- `models/`: Pre-trained models and configuration metadata.
-  - `base_pca_kde.pkl`: The core PCA projection and KDE latent model.
-  - `*reconstructor/config.pkl`: Reconstructor configuration parameters.
-  - `*reconstructor/correlation_matrix.npy`: PCA coefficient correlation matrices.
-- `doc/`: Documentation files.
-  - `experiment_plan.md`: Details of experiments A, B, and C.
-  - `metrics.md`: Definition of information-theoretic metrics.
-- `plots/`: Generated visualization products and csv catalogs from experiments.
+- `.agents/skills/spectra_reconstruction/`: AI Agent Skill configuration and instructions.
+  - `scripts/reconstruct.py`: Primary command-line interface for running reconstructions.
+- `src/`: Core Python library modules:
+  - `reconstruct_spectra.py`: Bayesian inference pipeline and spectrum reconstruction engine.
+  - `spectra_generator.py`: PCA spectral manifold and synthetic spectrum / color generation (`PCASpectrumGenerator`).
+  - `reverse_projection.py`: Utilities for projecting latent PCA posterior distributions back into synthetic optical color space.
+  - `color_to_spec.py`: Photometric flux conversions and normalization utilities.
+  - `metrics.py`: Information-theoretic metrics (Entropy, Information Gain, KL Divergence, Surprisal).
+  - `sample_gmm.py`: Latent GMM/KDE sampling utilities.
+  - `generate_gmm_average_spectra.py`: Class-average spectral distribution utilities.
+  - `plot_latent_dist.py`: Visualization tools for latent posteriors and distributions.
+- `models/`: Pre-trained reconstructors and the base PCA/KDE prior (`base_pca_kde.pkl`).
 
 ---
 
-## 🚀 Getting Started
+## ⚙️ Installation
 
-### Prerequisites
-
-Ensure you have the required dependencies installed:
+Ensure you have a Python 3 environment with the necessary dependencies installed:
 ```bash
-pip install autogluon scipy pandas scikit-learn numpy matplotlib
+pip install autogluon scipy pandas scikit-learn matplotlib
 ```
 
-### Running Reconstruction
+---
 
-You can run the reconstruction CLI tool to generate full-resolution spectra from colors. For example, using the custom `spectra_reconstruction` skill:
+## 🚀 Usage
+
+### 1. Command-Line Spectral Inference
+Reconstruct full-resolution spectra and uncertainty bands directly from magnitude colors:
 
 ```bash
 python3 .agents/skills/spectra_reconstruction/scripts/reconstruct.py \
   --name "2025 NN80" \
   --system "LSST" \
-  --colors "g-r=0.4699,0.0478 r-i=0.2968,0.0384 i-z=0.1200,0.0555" \
+  --colors "g-r=0.4699,0.0478 r-i=0.2968,0.0384 iz=0.120,0.0555" \
   --out-dir "./plots"
 ```
 
 #### Argument Reference:
-* `--name`: (Optional) Name of the target asteroid, used in titles and output filenames.
-* `--system`: The photometric system used (`LSST` or `DES`).
+* `--name`: Target object identifier (used in filenames and plot titles).
+* `--system`: Photometric filter system (`LSST` or `DES`).
 * `--colors`: Space-separated magnitude color definitions formatted as `color=value,error`.
-* `--out-dir`: Directory to save the output CSV catalog and PNG plot.
+* `--out-dir`: Output directory for generated CSVs and plots.
+
+### 2. Generating Synthetic Optical Color Distributions
+Use `spectra_generator.py` or `reverse_projection.py` in Python to sample from the trained PCA manifold and compute synthetic colors:
+
+```python
+from src.spectra_generator import PCASpectrumGenerator
+
+# Load pre-trained PCA spectral manifold
+generator = PCASpectrumGenerator.load_model("models/base_pca_kde.pkl")
+
+# Generate synthetic spectra and corresponding optical colors
+synthetic_spectra = generator.generate(n_samples=1000)
+synthetic_colors = generator.generate_colors(n_samples=1000, system="LSST")
+```
 
 ---
 
-## 🔬 Experiments
+## 📊 Outputs
 
-This framework supports several experiments to evaluate photometric configuration impacts:
-
-- **Experiment A (Photometric Precision Sweep)**: Evaluates how the reconstruction's entropy, information gain, and novelty depend on the precision of the input photometry ($1\%$ to $30\%$ uncertainty levels).
-- **Experiment B (Filter Information Content)**: Measures the contribution of different optical filter combinations (e.g., `gri`, `griz`, `grizy`) under fixed photometric uncertainty.
-- **Experiment C (Rare Spectra Detection)**: Evaluates if information-theoretic metrics can flag rare/novel spectra types (such as `2006 RJ103` and `2011 SO277`) that were completely held out from model training.
+For each reconstruction run, the tool outputs:
+1. **CSV Catalog**: `[name]_reconstructed_spectrum.csv` containing median reflectance and $1\sigma$ / $90\%$ confidence bounds across wavelengths ($0.4\ \mu\text{m}$ to $5.1\ \mu\text{m}$).
+2. **Comparison Plot**: `[name]_reconstructed_spectrum.png` showing reconstructed median spectrum, uncertainty intervals, and input photometry points.
