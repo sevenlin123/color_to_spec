@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+
+data/raw/*
+data/processed/*
+
+# Ignore Autogluon model outputs
+AutogluonModels/
+
+# Ignore Autogluon predictors inside models
+models/**/predictor_pc_*
+
+# Ignore experiment run models
+models/experiments/
+
+# Ignore output plots
+plots/
+
+# Ignore compressed archives
+*.tgz
