@@ -1,10 +1,10 @@
 ---
 name: spectra_reconstruction
-description: Reconstructs TNO reflectance spectra from magnitude colors (like LSST or DES) using AutoGluon-trained PCA model.
+description: Reconstructs asteroid reflectance spectra from magnitude colors (like LSST or DES) using AutoGluon-trained PCA model.
 ---
-# TNO Reflectance Spectra Reconstructor Skill
+# Spectra Reconstruction Skill
 
-This skill allows the agent to reconstruct full-resolution TNO reflectance spectra ($0.3\ \mu\text{m}$ to $5.2\ \mu\text{m}$) with uncertainty bounds from input magnitude colors (e.g., $g-r, r-i, i-z, r-z$ in LSST or $g-r, r-z$ in DES).
+This skill allows the agent to reconstruct full-resolution asteroid reflectance spectra ($0.4\ \mu\text{m}$ to $5.1\ \mu\text{m}$) with uncertainty bounds from input magnitude colors (e.g., $g-r, r-i, i-z, r-z$ in LSST or $g-r, r-z$ in DES).
 
 ## How it works
 The reconstruction runs a Python script located at `scripts/reconstruct.py` within the skill directory. The script:

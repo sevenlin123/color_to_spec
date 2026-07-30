@@ -281,7 +281,7 @@ def main():
     plt.title(f"Reconstructed Reflectance Spectrum: {args.name}", fontsize=14, fontweight='bold')
     plt.grid(True, linestyle='--', alpha=0.4)
     plt.legend(fontsize=10, frameon=True)
-    plt.xlim(0.3, 5.2)
+    plt.xlim(0.35, 5.15)
     plt.tight_layout()
     
     plot_path_png = os.path.join(out_dir, f"{safe_name}_reconstructed_spectrum.png")
