@@ -1,39 +1,75 @@
-# TNO Reflectance Spectra Reconstructor from Optical colors
+# TNO Reflectance Spectra Reconstructor from Optical Colors
 
-This is a lightweight distribution of the TNO Reflectance Spectra Reconstructor from Optical colors. It allows you to reconstruct full-resolution reflectance spectra ($0.3\ \mu\text{m}$ to $5.2\ \mu\text{m}$) and uncertainty intervals from broadband magnitude colors (LSST or DES).
+This repository provides a reusable software package and AI skill for **optical-color-to-spectral inference** of Trans-Neptunian Objects (TNOs) and asteroids. It includes:
+- **Trained PCA Spectral Manifold**: Latent space representation and Kernel Density Estimation (KDE) prior (`base_pca_kde.pkl`).
+- **Bayesian Inference Pipeline**: Regressors mapping broadband magnitude colors (LSST or DES) to full-resolution reflectance spectra ($0.3\ \mu\text{m}$ to $5.2\ \mu\text{m}$) with uncertainty bounds.
+- **Spectral & Photometric Generation Utilities**: Modules for sampling posterior spectral distributions, reconstructing reflectance spectra, and generating synthetic optical color distributions via reverse projection.
 
-## Package Directory Structure
-* `.agents/skills/spectra_reconstruction/` - AI Agent Skill configuration and instructions (allows AI agents to automatically load and use this tool).
-  - `.agents/skills/spectra_reconstruction/scripts/reconstruct.py` - Core command-line wrapper script.
-* `src/` - Core library source code.
-* `models/` - Pre-trained AutoGluon predictors and the base PCA/KDE prior.
+---
 
-## Installation
+## 🛠️ Package Directory Structure
+
+- `.agents/skills/spectra_reconstruction/`: AI Agent Skill configuration and instructions.
+  - `scripts/reconstruct.py`: Primary command-line interface for running reconstructions.
+- `src/`: Core Python library modules:
+  - `reconstruct_spectra.py`: Bayesian inference pipeline and spectrum reconstruction engine.
+  - `spectra_generator.py`: PCA spectral manifold and synthetic spectrum / color generation (`PCASpectrumGenerator`).
+  - `reverse_projection.py`: Utilities for projecting latent PCA posterior distributions back into synthetic optical color space.
+  - `color_to_spec.py`: Photometric flux conversions and normalization utilities.
+  - `metrics.py`: Information-theoretic metrics (Entropy, Information Gain, KL Divergence, Surprisal).
+  - `sample_gmm.py`: Latent GMM/KDE sampling utilities.
+  - `generate_gmm_average_spectra.py`: Class-average spectral distribution utilities.
+  - `plot_latent_dist.py`: Visualization tools for latent posteriors and distributions.
+- `models/`: Pre-trained reconstructors and the base PCA/KDE prior (`base_pca_kde.pkl`).
+
+---
+
+## ⚙️ Installation
+
 Ensure you have a Python 3 environment with the necessary dependencies installed:
 ```bash
 pip install autogluon scipy pandas scikit-learn matplotlib
 ```
 
-## How to Run Reconstructions
-You can run reconstructions directly from the command line using the wrapper script:
+---
+
+## 🚀 Usage
+
+### 1. Command-Line Spectral Inference
+Reconstruct full-resolution spectra and uncertainty bands directly from magnitude colors:
 
 ```bash
 python3 .agents/skills/spectra_reconstruction/scripts/reconstruct.py \
   --name "2025 NN80" \
   --system "LSST" \
-  --colors "g-r=0.46991429,0.04782941 r-i=0.29678571,0.03845473 iz=0.120,0.0555" \
+  --colors "g-r=0.4699,0.0478 r-i=0.2968,0.0384 iz=0.120,0.0555" \
   --out-dir "./plots"
 ```
 
-### Argument Reference
-* `--name`: (Optional) The name of the asteroid target, used in titles and output filenames.
-* `--system`: The photometry filter system (`LSST` or `DES`).
-* `--colors`: Space-separated magnitude color definitions in the format `color=value,error`.
-  - Supported colors for LSST: `g-r`, `r-i`, `i-z`, `r-z`, `iz` (treated as $i-z$).
-  - Supported colors for DES: `g-r`, `r-z`.
-* `--out-dir`: (Optional) The directory to save the output CSV and PNG plot. Defaults to the workspace `./plots/` directory.
+#### Argument Reference:
+* `--name`: Target object identifier (used in filenames and plot titles).
+* `--system`: Photometric filter system (`LSST` or `DES`).
+* `--colors`: Space-separated magnitude color definitions formatted as `color=value,error`.
+* `--out-dir`: Output directory for generated CSVs and plots.
 
-## Outputs
-For each reconstruction, the tool generates:
-1. **CSV Catalog**: `[name]_reconstructed_spectrum.csv` containing the median spectrum and 1-sigma / 90% confidence boundaries.
-2. **Comparison Plot**: `[name]_reconstructed_spectrum.png` showing the median spectrum, uncertainty bands, and the input photometry data points.
+### 2. Generating Synthetic Optical Color Distributions
+Use `spectra_generator.py` or `reverse_projection.py` in Python to sample from the trained PCA manifold and compute synthetic colors:
+
+```python
+from src.spectra_generator import PCASpectrumGenerator
+
+# Load pre-trained PCA spectral manifold
+generator = PCASpectrumGenerator.load_model("models/base_pca_kde.pkl")
+
+# Generate synthetic spectra and corresponding optical colors
+synthetic_spectra = generator.generate(n_samples=1000)
+synthetic_colors = generator.generate_colors(n_samples=1000, system="LSST")
+```
+
+---
+
+## 📊 Outputs
+
+For each reconstruction run, the tool outputs:
+1. **CSV Catalog**: `[name]_reconstructed_spectrum.csv` containing median reflectance and $1\sigma$ / $90\%$ confidence bounds across wavelengths.
+2. **Comparison Plot**: `[name]_reconstructed_spectrum.png` showing reconstructed median spectrum, uncertainty intervals, and input photometry points.
