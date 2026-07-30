@@ -1,6 +1,6 @@
-# Asteroid Reflectance Spectra Reconstructor
+# TNO Reflectance Spectra Reconstructor from Optical colors
 
-This is a lightweight distribution of the Asteroid Reflectance Spectra Reconstructor. It allows you to reconstruct full-resolution reflectance spectra ($0.3\ \mu\text{m}$ to $5.2\ \mu\text{m}$) and uncertainty intervals from broadband magnitude colors (LSST or DES).
+This is a lightweight distribution of the TNO Reflectance Spectra Reconstructor from Optical colors. It allows you to reconstruct full-resolution reflectance spectra ($0.3\ \mu\text{m}$ to $5.2\ \mu\text{m}$) and uncertainty intervals from broadband magnitude colors (LSST or DES).
 
 ## Package Directory Structure
 * `.agents/skills/spectra_reconstruction/` - AI Agent Skill configuration and instructions (allows AI agents to automatically load and use this tool).
