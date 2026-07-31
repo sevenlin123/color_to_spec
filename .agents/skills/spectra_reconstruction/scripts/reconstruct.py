@@ -343,31 +343,31 @@ def main():
             XX_t, YY_t = np.meshgrid(x_t, y_t)
             ZZ_t = target_kde(np.vstack([XX_t.ravel(), YY_t.ravel()])).reshape(XX_t.shape)
             
-            # Compute 68% and 95% credibility thresholds
+            # Compute multi-level credibility thresholds (95%, 80%, 68%, 50%, 30%)
             sample_densities = target_kde(target_positions)
             sorted_densities = np.sort(sample_densities)
-            lvl_95 = sorted_densities[int(len(sorted_densities) * 0.05)]
-            lvl_68 = sorted_densities[int(len(sorted_densities) * 0.32)]
+            pcts = [0.05, 0.20, 0.32, 0.50, 0.70]  # 95%, 80%, 68%, 50%, 30% credibility
+            levels = [sorted_densities[int(len(sorted_densities) * p)] for p in pcts] + [ZZ_t.max() * 1.05]
             
-            # Filled contours for 95% and 68% confidence regions
+            # Continuous gradient fill using Reds colormap
             plt.contourf(
                 XX_t, YY_t, ZZ_t,
-                levels=[lvl_95, lvl_68, ZZ_t.max() * 1.1],
-                colors=['#e74c3c', '#c0392b'],
-                alpha=0.35,
+                levels=levels,
+                cmap='Reds',
+                alpha=0.45,
                 zorder=5
             )
             
-            # Line contours
+            # Fine line contours
             plt.contour(
                 XX_t, YY_t, ZZ_t,
-                levels=[lvl_95, lvl_68],
-                colors=['#c0392b', '#900c3f'],
-                linewidths=[1.2, 2.0],
+                levels=levels[:-1],
+                colors=['#c0392b', '#a93226', '#922b21', '#7b241c', '#641e16'],
+                linewidths=[0.8, 1.0, 1.3, 1.6, 2.0],
                 zorder=6
             )
             
-            plt.scatter([], [], color='#c0392b', alpha=0.5, label=f"{args.name} Posterior (68% & 95% CI)")
+            plt.scatter([], [], color='#c0392b', alpha=0.6, label=f"{args.name} Multi-level Posterior CI")
         except Exception:
             plt.scatter(
                 target_pc1, target_pc2,
