@@ -324,23 +324,64 @@ def main():
             except Exception:
                 pass
 
-        # 2. Target Object Posterior Samples (PC1 vs PC2)
+        # 2. Target Object Posterior Contours (PC1 vs PC2)
         target_pc1 = group_latent[:, 0]
         target_pc2 = group_latent[:, 1]
         
-        plt.scatter(
-            target_pc1, target_pc2,
-            color='tab:red', alpha=0.3, s=15,
-            edgecolors='none', label=f"{args.name} Posterior Samples"
-        )
+        try:
+            from scipy.stats import gaussian_kde
+            from matplotlib.lines import Line2D
+            
+            target_positions = np.vstack([target_pc1, target_pc2])
+            target_kde = gaussian_kde(target_positions)
+            
+            # Grid for target posterior contours
+            pad_x = (target_pc1.max() - target_pc1.min()) * 0.3
+            pad_y = (target_pc2.max() - target_pc2.min()) * 0.3
+            x_t = np.linspace(target_pc1.min() - pad_x, target_pc1.max() + pad_x, 100)
+            y_t = np.linspace(target_pc2.min() - pad_y, target_pc2.max() + pad_y, 100)
+            XX_t, YY_t = np.meshgrid(x_t, y_t)
+            ZZ_t = target_kde(np.vstack([XX_t.ravel(), YY_t.ravel()])).reshape(XX_t.shape)
+            
+            # Compute 68% and 95% credibility thresholds
+            sample_densities = target_kde(target_positions)
+            sorted_densities = np.sort(sample_densities)
+            lvl_95 = sorted_densities[int(len(sorted_densities) * 0.05)]
+            lvl_68 = sorted_densities[int(len(sorted_densities) * 0.32)]
+            
+            # Filled contours for 95% and 68% confidence regions
+            plt.contourf(
+                XX_t, YY_t, ZZ_t,
+                levels=[lvl_95, lvl_68, ZZ_t.max() * 1.1],
+                colors=['#e74c3c', '#c0392b'],
+                alpha=0.35,
+                zorder=5
+            )
+            
+            # Line contours
+            plt.contour(
+                XX_t, YY_t, ZZ_t,
+                levels=[lvl_95, lvl_68],
+                colors=['#c0392b', '#900c3f'],
+                linewidths=[1.2, 2.0],
+                zorder=6
+            )
+            
+            plt.scatter([], [], color='#c0392b', alpha=0.5, label=f"{args.name} Posterior (68% & 95% CI)")
+        except Exception:
+            plt.scatter(
+                target_pc1, target_pc2,
+                color='tab:red', alpha=0.3, s=15,
+                edgecolors='none', label=f"{args.name} Posterior Samples"
+            )
         
         # Posterior Mean Marker
         mean_pc1 = np.mean(target_pc1)
         mean_pc2 = np.mean(target_pc2)
         plt.scatter(
             [mean_pc1], [mean_pc2],
-            color='darkred', marker='*', s=200,
-            edgecolors='white', linewidths=1.2,
+            color='gold', marker='*', s=220,
+            edgecolors='black', linewidths=1.2,
             zorder=10, label=f"{args.name} Posterior Mean"
         )
 
