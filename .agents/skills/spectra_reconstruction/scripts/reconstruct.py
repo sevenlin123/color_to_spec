@@ -289,5 +289,82 @@ def main():
     plt.close()
     print(f"Saved plot to: {plot_path_png}")
 
+    # --- 2D Latent Space Plot (PC1 vs PC2) ---
+    try:
+        plt.figure(figsize=(7, 6))
+        
+        # 1. Background prior distribution (TNO reference set)
+        prior_pc1, prior_pc2 = None, None
+        base_pca_path = os.path.join(os.path.dirname(model_dir), "base_pca_kde.pkl")
+        if os.path.exists(base_pca_path):
+            with open(base_pca_path, "rb") as f:
+                base_data = pickle.load(f)
+            if 'latent_data' in base_data and base_data['latent_data'] is not None:
+                prior_pc1 = base_data['latent_data'][:, 0]
+                prior_pc2 = base_data['latent_data'][:, 1]
+                
+        if prior_pc1 is not None:
+            plt.scatter(
+                prior_pc1, prior_pc2,
+                color='gray', alpha=0.4, s=35,
+                edgecolors='none', label="TNO Population Prior"
+            )
+            
+            # Contour density for population prior
+            try:
+                from scipy.stats import gaussian_kde
+                margin_x = (prior_pc1.max() - prior_pc1.min()) * 0.15
+                margin_y = (prior_pc2.max() - prior_pc2.min()) * 0.15
+                x_grid = np.linspace(prior_pc1.min() - margin_x, prior_pc1.max() + margin_x, 100)
+                y_grid = np.linspace(prior_pc2.min() - margin_y, prior_pc2.max() + margin_y, 100)
+                XX, YY = np.meshgrid(x_grid, y_grid)
+                kernel = gaussian_kde(np.vstack([prior_pc1, prior_pc2]))
+                ZZ = kernel(np.vstack([XX.ravel(), YY.ravel()])).reshape(XX.shape)
+                plt.contour(XX, YY, ZZ, levels=4, colors='gray', alpha=0.35, linestyles='--')
+            except Exception:
+                pass
+
+        # 2. Target Object Posterior Samples (PC1 vs PC2)
+        target_pc1 = group_latent[:, 0]
+        target_pc2 = group_latent[:, 1]
+        
+        plt.scatter(
+            target_pc1, target_pc2,
+            color='tab:red', alpha=0.3, s=15,
+            edgecolors='none', label=f"{args.name} Posterior Samples"
+        )
+        
+        # Posterior Mean Marker
+        mean_pc1 = np.mean(target_pc1)
+        mean_pc2 = np.mean(target_pc2)
+        plt.scatter(
+            [mean_pc1], [mean_pc2],
+            color='darkred', marker='*', s=200,
+            edgecolors='white', linewidths=1.2,
+            zorder=10, label=f"{args.name} Posterior Mean"
+        )
+
+        # Labels & Explained Variance
+        pc1_var = pca.explained_variance_ratio_[0] * 100 if hasattr(pca, 'explained_variance_ratio_') else 0
+        pc2_var = pca.explained_variance_ratio_[1] * 100 if hasattr(pca, 'explained_variance_ratio_') else 0
+        
+        var1_str = f" ({pc1_var:.1f}% var)" if pc1_var > 0 else ""
+        var2_str = f" ({pc2_var:.1f}% var)" if pc2_var > 0 else ""
+        
+        plt.xlabel(f'PC1 Coordinate{var1_str}', fontsize=12, fontweight='bold')
+        plt.ylabel(f'PC2 Coordinate{var2_str}', fontsize=12, fontweight='bold')
+        plt.title(f"Latent PC1-PC2 Posterior Distribution: {args.name}", fontsize=13, fontweight='bold')
+        plt.grid(True, linestyle=':', alpha=0.5)
+        plt.legend(fontsize=10, loc='best', frameon=True)
+        plt.tight_layout()
+        
+        latent_plot_path_png = os.path.join(out_dir, f"{safe_name}_latent_pc1_pc2.png")
+        plt.savefig(latent_plot_path_png, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"Saved latent PC1-PC2 plot to: {latent_plot_path_png}")
+    except Exception as e:
+        print(f"Warning: Could not generate 2D latent space plot: {e}")
+
 if __name__ == "__main__":
     main()
+

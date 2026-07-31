@@ -45,3 +45,5 @@ The script outputs:
    - `lower_1sigma`, `upper_1sigma`
    - `lower_90pct`, `upper_90pct`
 2. **Comparison Plot**: `[name]_reconstructed_spectrum.png` showing the median reconstruction, uncertainty bands, and the input photometry data points.
+3. **2D Latent Space Plot**: `[name]_latent_pc1_pc2.png` showing the target object's posterior Monte Carlo distribution and mean overlaid on the TNO population prior in PC1 vs PC2 space.
+
