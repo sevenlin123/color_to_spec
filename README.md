@@ -37,16 +37,10 @@ The reconstruction framework operates in a low-dimensional latent space:
   - `spectra_generator.py`: PCA-based spectrum generation using KDE sampling.
   - `train_and_evaluate.py`: Training script for the AutoGluon regressors.
   - `metrics.py`: Script to compute information metrics (Entropy, KL Divergence, etc.).
-- `notebook/`: Jupyter notebooks showing model training and verification workflows.
-  - `reconstructor.ipynb`: Walkthrough of the training and reconstruction process.
-  - `validation.ipynb`: Validation and diagnostic checks.
 - `models/`: Pre-trained models and configuration metadata.
   - `base_pca_kde.pkl`: The core PCA projection and KDE latent model.
   - `*reconstructor/config.pkl`: Reconstructor configuration parameters.
   - `*reconstructor/correlation_matrix.npy`: PCA coefficient correlation matrices.
-- `doc/`: Documentation files.
-  - `experiment_plan.md`: Details of experiments A, B, and C.
-  - `metrics.md`: Definition of information-theoretic metrics.
 - `plots/`: Generated visualization products and csv catalogs from experiments.
 
 ---
