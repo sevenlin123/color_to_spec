@@ -2,7 +2,7 @@
 
 This repository contains a machine learning framework designed to reconstruct full-resolution reflectance spectra (from $0.4\ \mu\text{m}$ to $5.1\ \mu\text{m}$) of Trans-Neptunian Objects (TNOs) and asteroids from sparse magnitude colors (such as LSST `g-r`, `r-i`, `i-z`, `r-z` or DES `g-r`, `r-z`) with uncertainty quantification.
 
-> Rather than predicting a single spectrum, the model estimates a posterior probability distribution over the optical–NIR spectral manifold, enabling uncertainty-aware compositional inference and follow-up target prioritization.
+Rather than predicting a single spectrum, the model estimates a posterior probability distribution over the optical–NIR spectral manifold, enabling uncertainty-aware compositional inference and follow-up target prioritization.
 
 ---
 
