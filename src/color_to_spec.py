@@ -90,6 +90,11 @@ def color_to_spec(gr, ri, rz, gr_err, ri_err, rz_err, norm_band='i'):
         return (r_g, r_r, r_i, r_z), (r_g_err, r_r_err, r_i_err, r_z_err)
 
     else: # default 'g'
+        g_flux_sun = 10**(-1/2.5)
+        r_flux_sun = 10**(-(1-gr_sun)/2.5)
+        i_flux_sun = 10**(-(1-gi_sun)/2.5)
+        z_flux_sun = 10**(-(1-gz_sun)/2.5)
+        
         g_flux = 10**(-1/2.5)
         r_flux = 10**(-(1-gr)/2.5)
         gi = gr + ri
@@ -106,9 +111,9 @@ def color_to_spec(gr, ri, rz, gr_err, ri_err, rz_err, norm_band='i'):
         z_flux_sun_err = (z_flux_sun**2 * (1/2.5 *np.log(10) * gz_sun_err)**2) ** 0.5
         ref = (g_flux/g_flux_sun, r_flux/r_flux_sun, i_flux/i_flux_sun, z_flux/z_flux_sun)
         ref_err = (0, 
-                   (r_flux/r_flux_sun * (r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
-                   (i_flux/i_flux_sun * (i_flux_err/i_flux)**2 + (i_flux_sun_err/i_flux_sun)**2)**0.5,
-                   (z_flux/z_flux_sun * (z_flux_err/z_flux)**2 + (z_flux_sun_err/z_flux_sun)**2)**0.5,
+                   (r_flux/r_flux_sun) * ((r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
+                   (i_flux/i_flux_sun) * ((i_flux_err/i_flux)**2 + (i_flux_sun_err/i_flux_sun)**2)**0.5,
+                   (z_flux/z_flux_sun) * ((z_flux_err/z_flux)**2 + (z_flux_sun_err/z_flux_sun)**2)**0.5,
                     )
         return ref, ref_err
 
@@ -146,8 +151,8 @@ def color_to_spec_gri(gr, ri, gr_err, ri_err, norm_band='i'):
 
     ref = (g_flux/g_flux_sun, r_flux/r_flux_sun, i_flux/i_flux_sun)
     ref_err = (0, 
-               (r_flux/r_flux_sun * (r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
-               (i_flux/i_flux_sun * (i_flux_err/i_flux)**2 + (i_flux_sun_err/i_flux_sun)**2)**0.5,
+               (r_flux/r_flux_sun) * ((r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
+               (i_flux/i_flux_sun) * ((i_flux_err/i_flux)**2 + (i_flux_sun_err/i_flux_sun)**2)**0.5,
                 )
     
     if norm_band == 'i':
@@ -182,8 +187,8 @@ def color_to_spec_grz(gr, rz, gr_err, rz_err, norm_band='z'):
 
     ref = (g_flux/g_flux_sun, r_flux/r_flux_sun, z_flux/z_flux_sun)
     ref_err = (0, 
-               (r_flux/r_flux_sun * (r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
-               (z_flux/z_flux_sun * (z_flux_err/z_flux)**2 + (z_flux_sun_err/z_flux_sun)**2)**0.5,
+               (r_flux/r_flux_sun) * ((r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
+               (z_flux/z_flux_sun) * ((z_flux_err/z_flux)**2 + (z_flux_sun_err/z_flux_sun)**2)**0.5,
                 )
     
     if norm_band == 'z':
@@ -225,8 +230,8 @@ def color_to_spec_bvr(gr, ri, gr_err, ri_err, norm_band='i'):
 
     ref = (g_flux/g_flux_sun, r_flux/r_flux_sun, i_flux/i_flux_sun)
     ref_err = (0, 
-               (r_flux/r_flux_sun * (r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
-               (i_flux/i_flux_sun * (i_flux_err/i_flux)**2 + (i_flux_sun_err/i_flux_sun)**2)**0.5,
+               (r_flux/r_flux_sun) * ((r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
+               (i_flux/i_flux_sun) * ((i_flux_err/i_flux)**2 + (i_flux_sun_err/i_flux_sun)**2)**0.5,
                 )
     
     if norm_band == 'i':
@@ -276,10 +281,10 @@ def color_to_spec_grizy(gr, ri, iz, zy, gr_err, ri_err, iz_err, zy_err, norm_ban
 
     ref = (g_flux/g_flux_sun, r_flux/r_flux_sun, i_flux/i_flux_sun, z_flux/z_flux_sun, y_flux/y_flux_sun)
     ref_err = (0, 
-               (r_flux/r_flux_sun * (r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
-               (i_flux/i_flux_sun * (i_flux_err/i_flux)**2 + (i_flux_sun_err/i_flux_sun)**2)**0.5,
-               (z_flux/z_flux_sun * (z_flux_err/z_flux)**2 + (z_flux_sun_err/z_flux_sun)**2)**0.5,
-               (y_flux/y_flux_sun * (y_flux_err/y_flux)**2 + (y_flux_sun_err/y_flux_sun)**2)**0.5,
+               (r_flux/r_flux_sun) * ((r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
+               (i_flux/i_flux_sun) * ((i_flux_err/i_flux)**2 + (i_flux_sun_err/i_flux_sun)**2)**0.5,
+               (z_flux/z_flux_sun) * ((z_flux_err/z_flux)**2 + (z_flux_sun_err/z_flux_sun)**2)**0.5,
+               (y_flux/y_flux_sun) * ((y_flux_err/y_flux)**2 + (y_flux_sun_err/y_flux_sun)**2)**0.5,
                 )
     
     if norm_band == 'i':
