@@ -33,43 +33,83 @@ def color_to_spec(gr, ri, rz, gr_err, ri_err, rz_err, norm_band='i'):
     gz_sun = 0.61
     gz_sun_err = 0.03
     
-    g_flux_sun = 10**(-1/2.5)
-    r_flux_sun = 10**(-(1-gr_sun)/2.5)
-    i_flux_sun = 10**(-(1-gi_sun)/2.5)
-    z_flux_sun = 10**(-(1-gz_sun)/2.5)
-    
-    r_flux_sun_err = (r_flux_sun**2 * (1/2.5 *np.log(10) * gr_sun_err)**2) ** 0.5
-    i_flux_sun_err = (i_flux_sun**2 * (1/2.5 *np.log(10) * gi_sun_err)**2) ** 0.5
-    z_flux_sun_err = (z_flux_sun**2 * (1/2.5 *np.log(10) * gz_sun_err)**2) ** 0.5 
+    scale = np.log(10) / 2.5  # 0.4 * ln(10) ~ 0.921034
 
-
-    gi = gr + ri
-    gz = gr + rz
-
-    gi_err = (gr_err**2 + ri_err**2)**0.5
-    gz_err = (gr_err**2 + rz_err**2)**0.5
-
-    g_flux = 10**(-1/2.5)
-    r_flux = 10**(-(1-gr)/2.5)
-    i_flux = 10**(-(1-gi)/2.5)
-    z_flux = 10**(-(1-gz)/2.5) 
-
-    r_flux_err = (r_flux**2 * (1/2.5 *np.log(10) * gr_err)**2) ** 0.5
-    i_flux_err = (i_flux**2 * (1/2.5 *np.log(10) * gi_err)**2) ** 0.5
-    z_flux_err = (z_flux**2 * (1/2.5 *np.log(10) * gz_err)**2) ** 0.5 
-
-    ref = (g_flux/g_flux_sun, r_flux/r_flux_sun, i_flux/i_flux_sun, z_flux/z_flux_sun)
-    ref_err = (0, 
-               (r_flux/r_flux_sun * (r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
-               (i_flux/i_flux_sun * (i_flux_err/i_flux)**2 + (i_flux_sun_err/i_flux_sun)**2)**0.5,
-               (z_flux/z_flux_sun * (z_flux_err/z_flux)**2 + (z_flux_sun_err/z_flux_sun)**2)**0.5,
-                )
-    
     if norm_band == 'i':
-        return normalize_to_band(ref, ref_err, 2)
+        # Normalized to i-band: R_i = 1.0, err = 0.0
+        r_i = 1.0
+        r_i_err = 0.0
+
+        # r-band relative to i: depends ONLY on (r-i)
+        ri_sun = gi_sun - gr_sun  # 0.12
+        ri_sun_err = (gi_sun_err**2 + gr_sun_err**2)**0.5
+        r_r = 10**(-0.4 * (ri - ri_sun))
+        r_r_err = r_r * scale * (ri_err**2 + ri_sun_err**2)**0.5
+
+        # g-band relative to i: depends on (g-i) = (g-r) + (r-i)
+        gi = gr + ri
+        gi_err = (gr_err**2 + ri_err**2)**0.5
+        r_g = 10**(-0.4 * (gi - gi_sun))
+        r_g_err = r_g * scale * (gi_err**2 + gi_sun_err**2)**0.5
+
+        # z-band relative to i: depends on (i-z) = (r-z) - (r-i)
+        iz = rz - ri
+        iz_sun = gz_sun - gi_sun  # 0.04
+        iz_sun_err = (gz_sun_err**2 + gi_sun_err**2)**0.5
+        iz_err = (rz_err**2 + ri_err**2)**0.5
+        r_z = 10**(0.4 * (iz - iz_sun))
+        r_z_err = r_z * scale * (iz_err**2 + iz_sun_err**2)**0.5
+
+        return (r_g, r_r, r_i, r_z), (r_g_err, r_r_err, r_i_err, r_z_err)
+
     elif norm_band == 'z':
-        return normalize_to_band(ref, ref_err, 3)
+        # Normalized to z-band: R_z = 1.0, err = 0.0
+        r_z = 1.0
+        r_z_err = 0.0
+
+        # g-band relative to z: depends on (g-z)
+        gz = gr + rz
+        gz_err = (gr_err**2 + rz_err**2)**0.5
+        r_g = 10**(-0.4 * (gz - gz_sun))
+        r_g_err = r_g * scale * (gz_err**2 + gz_sun_err**2)**0.5
+
+        # r-band relative to z: depends on (r-z)
+        rz_sun = gz_sun - gr_sun
+        rz_sun_err = (gz_sun_err**2 + gr_sun_err**2)**0.5
+        r_r = 10**(-0.4 * (rz - rz_sun))
+        r_r_err = r_r * scale * (rz_err**2 + rz_sun_err**2)**0.5
+
+        # i-band relative to z: depends on (i-z)
+        iz = rz - ri
+        iz_sun = gz_sun - gi_sun
+        iz_sun_err = (gz_sun_err**2 + gi_sun_err**2)**0.5
+        iz_err = (rz_err**2 + ri_err**2)**0.5
+        r_i = 10**(-0.4 * (iz - iz_sun))
+        r_i_err = r_i * scale * (iz_err**2 + iz_sun_err**2)**0.5
+
+        return (r_g, r_r, r_i, r_z), (r_g_err, r_r_err, r_i_err, r_z_err)
+
     else: # default 'g'
+        g_flux = 10**(-1/2.5)
+        r_flux = 10**(-(1-gr)/2.5)
+        gi = gr + ri
+        gz = gr + rz
+        gi_err = (gr_err**2 + ri_err**2)**0.5
+        gz_err = (gr_err**2 + rz_err**2)**0.5
+        i_flux = 10**(-(1-gi)/2.5)
+        z_flux = 10**(-(1-gz)/2.5)
+        r_flux_err = (r_flux**2 * (1/2.5 *np.log(10) * gr_err)**2) ** 0.5
+        i_flux_err = (i_flux**2 * (1/2.5 *np.log(10) * gi_err)**2) ** 0.5
+        z_flux_err = (z_flux**2 * (1/2.5 *np.log(10) * gz_err)**2) ** 0.5
+        r_flux_sun_err = (r_flux_sun**2 * (1/2.5 *np.log(10) * gr_sun_err)**2) ** 0.5
+        i_flux_sun_err = (i_flux_sun**2 * (1/2.5 *np.log(10) * gi_sun_err)**2) ** 0.5
+        z_flux_sun_err = (z_flux_sun**2 * (1/2.5 *np.log(10) * gz_sun_err)**2) ** 0.5
+        ref = (g_flux/g_flux_sun, r_flux/r_flux_sun, i_flux/i_flux_sun, z_flux/z_flux_sun)
+        ref_err = (0, 
+                   (r_flux/r_flux_sun * (r_flux_err/r_flux)**2 + (r_flux_sun_err/r_flux_sun)**2)**0.5,
+                   (i_flux/i_flux_sun * (i_flux_err/i_flux)**2 + (i_flux_sun_err/i_flux_sun)**2)**0.5,
+                   (z_flux/z_flux_sun * (z_flux_err/z_flux)**2 + (z_flux_sun_err/z_flux_sun)**2)**0.5,
+                    )
         return ref, ref_err
 
 

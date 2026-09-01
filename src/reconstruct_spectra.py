@@ -25,16 +25,15 @@ SYSTEMS = {
     }
 }
 
-def planck(wav, wav_target, T=5778):
+def planck(wav, T=5778):
     """
-    Planck function calculation matching the reference project's scaling and implementation.
+    Planck blackbody radiation B_lambda(T) for wavelength(s) in microns.
     """
+    wav_m = np.asarray(wav) * 1e-6  # convert microns to meters
     a = 2.0 * h * c**2
-    b = h * c / (wav * k * T)
-    b_target = h * c / (wav_target * k * T)
-    intensity = a / ( (wav**5) * (np.exp(b) - 1.0) )
-    intensity_target = a / ( (wav_target**5) * (np.exp(b_target) - 1.0) )
-    return intensity_target/intensity.max()
+    b = (h * c) / (wav_m * k * T)
+    intensity = a / ((wav_m**5) * (np.exp(b) - 1.0))
+    return intensity
 
 def calculate_photometry(spectrum, wavelengths, widths, wl_grid, uncertainty=0.2, add_noise=True):
     """
@@ -48,7 +47,7 @@ def calculate_photometry(spectrum, wavelengths, widths, wl_grid, uncertainty=0.2
         wls = np.linspace(w_min, w_max, num=100)
         
         # Calculate Planck profile across the band fine grid
-        p_wls = planck(wls, w_max, w_min)
+        p_wls = planck(wls)
         r_wls = spec_phot(wls)
         
         # Compute observed flux F(lambda) = R(lambda) * P(lambda)
@@ -224,9 +223,9 @@ def train_reconstructor_model(spectra, wl_grid, system_name, n_components=10, mo
         print(f"Fitting dedicated PCA and training KDE generator (norm_wl={norm_wl})...")
         generator = PCASpectrumGenerator(spectra, n_components=n_components)
         
-    # 2. Generate augmented training data (10,000 synthetic spectra)
+    # 2. Generate augmented training data (3,000 synthetic spectra)
     print("Generating synthetic training data...")
-    synthetic_spectra = generator.generate(n_samples=10000)
+    synthetic_spectra = generator.generate(n_samples=3000)
     
     # 3. Extract features and targets
     X_train = extract_features(synthetic_spectra, wl_grid, system_name, bands_subset=bands_subset)
@@ -234,10 +233,10 @@ def train_reconstructor_model(spectra, wl_grid, system_name, n_components=10, mo
     
     # Determine train and validation splits for AutoGluon and residuals
     if spectra is None:
-        X_train_fit = X_train.iloc[:9000]
-        Y_train_fit = Y_train_pca[:9000]
-        X_val = X_train.iloc[9000:]
-        Y_val_pca = Y_train_pca[9000:]
+        X_train_fit = X_train.iloc[:2500]
+        Y_train_fit = Y_train_pca[:2500]
+        X_val = X_train.iloc[2500:]
+        Y_val_pca = Y_train_pca[2500:]
     else:
         X_train_fit = X_train
         Y_train_fit = Y_train_pca
@@ -274,7 +273,7 @@ def train_reconstructor_model(spectra, wl_grid, system_name, n_components=10, mo
         predictor.fit(
             train_data_specific,
             hyperparameters={'GBM': {}},
-            time_limit=60
+            time_limit=180
         )
         predictors[target] = predictor
         

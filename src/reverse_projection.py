@@ -9,7 +9,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from scipy.stats import gaussian_kde
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, splprep, splev
 
 # Resolve paths
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -23,10 +23,11 @@ def main():
     # 1. Setup paths
     models_dir = os.path.join(project_root, "models")
     plots_dir = os.path.join(project_root, "plots")
-    artifact_dir = "/Users/hsingwel/.gemini/antigravity/brain/52536918-f1e0-4a4e-a7fb-446c1235ff36"
+    artifact_dir = os.environ.get("ANTIGRAVITY_ARTIFACT_DIR", None)
     
     os.makedirs(plots_dir, exist_ok=True)
-    os.makedirs(artifact_dir, exist_ok=True)
+    if artifact_dir:
+        os.makedirs(artifact_dir, exist_ok=True)
     
     base_path = os.path.join(models_dir, "base_pca_kde_0926.pkl")
     if not os.path.exists(base_path):
@@ -244,64 +245,29 @@ def main():
     # Define explicit levels starting from 1% of peak density to show the wide tails (down to 2-3sigma)
     gmm_levels = pdf_GMM.max() * np.array([0.01, 0.05, 0.1, 0.3, 0.6, 0.9])
     
-    # Set up figure for two panels
-    plt.figure(figsize=(14.5, 6.5))
+    # C. Plotting helper
+    def eval_spline(pts, k=3, s=0, n_eval=200):
+        tck, u = splprep([pts[:, 0], pts[:, 1]], k=k, s=s)
+        u_new = np.linspace(0, 1, n_eval)
+        return splev(u_new, tck)
+
+    arrow_blue_color = '#0D47A1'  # Deep Navy Blue
+    arrow_red_color  = '#B71C1C'  # Deep Crimson Red
+
+    # Compute principal axes and dividing lines for NIRB and NIRF
+    vals_B, vecs_B = np.linalg.eigh(cov_B)
+    v1_B = vecs_B[:, 1]
+    if v1_B[0] < 0: v1_B = -v1_B
+    v2_B = np.array([-v1_B[1], v1_B[0]])
     
-    # ================= PANEL A: DES Color-Color Space =================
-    plt.subplot(1, 2, 1)
+    vals_F, vecs_F = np.linalg.eigh(cov_F)
+    v1_F = vecs_F[:, 1]
+    if v1_F[0] < 0: v1_F = -v1_F
+    v2_F = np.array([-v1_F[1], v1_F[0]])
     
-    # Plot GMM background contours
-    plt.contour(X, Y, pdf_GMM, levels=gmm_levels, colors='#555555', alpha=0.6, linewidths=1.0, linestyles='--')
-    plt.text(mu_B[0] - 0.05, mu_B[1] - 0.05, 'NIRB', color='#333333', fontsize=15, fontweight='bold', alpha=0.9)
-    plt.text(mu_F[0] - 0.05, mu_F[1] - 0.05, 'NIRF', color='#333333', fontsize=15, fontweight='bold', alpha=0.9)
-    
-    # 1. Plot KDE density maps (outline contours for each class, plotted in order with CO2 last)
-    pos_flat = np.vstack([X.ravel(), Y.ravel()])
-    plot_order = ['Water', 'Methanol', 'Organic', 'CO2']
-    for cls in plot_order:
-        cls_sampled_mask = np.array(sampled_classes_list) == cls
-        x_cls = sampled_des.loc[cls_sampled_mask, 'DES_g-r'].values
-        y_cls = sampled_des.loc[cls_sampled_mask, 'DES_r-z'].values
-        
-        # Fit 2D KDE
-        values = np.vstack([x_cls, y_cls])
-        kernel = gaussian_kde(values, bw_method=0.35)
-        Z_cls = np.reshape(kernel(pos_flat).T, X.shape)
-        
-        # Define smooth gradient levels starting at 2% density floor to cover wide tails
-        levels_cls = np.linspace(0.02 * Z_cls.max(), 1.00 * Z_cls.max(), 8)
-        
-        from matplotlib.colors import to_rgba, LinearSegmentedColormap
-        g_color = class_styles[cls]['color']
-        max_alpha = 0.65 if cls == 'CO2' else 0.45
-        rgba_color = to_rgba(g_color, alpha=max_alpha)
-        rgba_transparent = (rgba_color[0], rgba_color[1], rgba_color[2], 0.0)
-        cmap_cls = LinearSegmentedColormap.from_list(f'cmap_{cls}', [rgba_transparent, rgba_color])
-        
-        plt.contourf(
-            X, Y, Z_cls,
-            levels=levels_cls,
-            cmap=cmap_cls,
-            zorder=2
-        )
-        
-    # 2. Overlay training set objects, colored by class
-    for cls in plot_order:
-        cls_mask = np.array(training_classes) == cls
-        if np.any(cls_mask):
-            marker_size = 35 if cls != 'CO2' else 25
-            plt.scatter(
-                train_true_des.loc[cls_mask, 'DES_g-r'],
-                train_true_des.loc[cls_mask, 'DES_r-z'],
-                color=class_styles[cls]['color'],
-                marker=class_styles[cls]['marker'],
-                s=marker_size,
-                edgecolor='black',
-                linewidths=0.6,
-                label=class_styles[cls]['label'],
-                zorder=5
-            )
-            
+    line_len_B, line_len_F = 0.075, 0.085
+    label_bbox = dict(boxstyle='round,pad=0.18', facecolor='white', alpha=0.65, edgecolor='none')
+
     # Load and process all 7 special target spectra (SO277 family & RJ103 family)
     special_targets = [
         {'file': '2011SO277_merged_unified.csv', 'label': '2011SO277', 'marker': 'P', 'size': 160, 'color': '#111111'},
@@ -358,42 +324,9 @@ def main():
                 'pc2': lat_sp[1]
             })
 
-    # 3. Highlight specific special targets (SO277, RJ103, BP81, QV89) in Panel A
-    for item in special_coords:
-        plt.scatter(
-            item['gr'], item['rz'],
-            s=item['size'], color=item['color'],
-            edgecolor='white', linewidths=0.9,
-            marker=item['marker'], zorder=7,
-            label=item['label']
-        )
-            
-    plt.xlabel('$g - r$', fontsize=20, fontweight='bold')
-    plt.ylabel('$r - z$', fontsize=20, fontweight='bold')
-    plt.xlim(0.25, 1.35)
-    plt.ylim(-0.1, 1.0)
-    plt.tick_params(axis='both', which='major', labelsize=16)
-    plt.grid(True, linestyle='--', alpha=0.5)
-    
-    # Separate Legends for Panel A
-    import matplotlib.lines as mlines
-    class_handles = [
-        mlines.Line2D([], [], color=class_styles[cls]['color'], marker=class_styles[cls]['marker'], linestyle='None', markersize=9, label=class_styles[cls]['label'])
-        for cls in ['Water', 'CO2', 'Organic', 'Methanol']
-    ]
-    outlier_handles = [
-        mlines.Line2D([], [], color=item['color'], marker=item['marker'], linestyle='None', markersize=11, label=item['label'])
-        for item in special_coords
-    ]
-    
-    ax1 = plt.gca()
-    leg1 = ax1.legend(handles=class_handles, frameon=True, fontsize=13, loc='upper left')
-    ax1.add_artist(leg1)
-    ax1.legend(handles=outlier_handles, frameon=True, fontsize=11, loc='lower right')
-    
-    # ================= PANEL B: PCA Latent Space (PC1 vs PC2) =================
-    plt.subplot(1, 2, 2)
-    
+    plot_order = ['Water', 'Methanol', 'Organic', 'CO2']
+    pos_flat = np.vstack([X.ravel(), Y.ravel()])
+
     # Setup PC1 and PC2 grid limits
     sp_pc1 = [item['pc1'] for item in special_coords]
     sp_pc2 = [item['pc2'] for item in special_coords]
@@ -410,85 +343,264 @@ def main():
     pc2_grid = np.linspace(pc2_lim[0], pc2_lim[1], 100)
     X_pc, Y_pc = np.meshgrid(pc1_grid, pc2_grid)
     pos_pc_flat = np.vstack([X_pc.ravel(), Y_pc.ravel()])
-    
-    # 1. Plot KDE density maps for PC1 vs PC2
-    for cls in plot_order:
-        cls_sampled_mask = np.array(sampled_classes_list) == cls
-        x_cls_pc = sampled_latent[cls_sampled_mask, 0]
-        y_cls_pc = sampled_latent[cls_sampled_mask, 1]
+
+    from matplotlib.collections import LineCollection
+    from matplotlib.colors import to_rgba, LinearSegmentedColormap
+
+    # Panel A colormap tailored to Panel A progress:
+    # Blue (0.0 to 0.38) -> Orange (0.50) -> Red (0.75) -> Purple (0.90 to 1.0)
+    cmap_A = LinearSegmentedColormap.from_list('traj_grad_A', [
+        (0.00, '#0D47A1'),  # Deep Navy Blue
+        (0.32, '#1976D2'),  # Royal Blue
+        (0.48, '#F57C00'),  # Vivid Orange (CO2)
+        (0.72, '#D32F2F'),  # Rich Red (Organic)
+        (0.88, '#9C27B0'),  # Purple (Methanol entry)
+        (1.00, '#7B1FA2')   # Deep Violet
+    ])
+
+    # Panel B colormap tailored to Panel B progress:
+    # Blue stays until top loop (0.0 to 0.52) -> Orange only when reaching CO2 (0.69) -> Red (0.83) -> Purple (0.92 to 1.0)
+    cmap_B = LinearSegmentedColormap.from_list('traj_grad_B', [
+        (0.00, '#0D47A1'),  # Deep Navy Blue
+        (0.50, '#1976D2'),  # Still pure Royal Blue through higher upper loop
+        (0.60, '#0288D1'),  # Transitioning down towards SO277
+        (0.69, '#F57C00'),  # Vivid Orange (inside CO2 contour)
+        (0.83, '#D32F2F'),  # Rich Red (Organic)
+        (0.92, '#9C27B0'),  # Purple (Methanol)
+        (1.00, '#7B1FA2')   # Deep Violet
+    ])
+
+    def plot_gradient_curve(ax, x, y, cmap, lw=2.8, zorder=8):
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+        t = np.linspace(0, 1.0, len(segments))
+        lc = LineCollection(segments, cmap=cmap, linewidth=lw, zorder=zorder)
+        lc.set_array(t)
+        ax.add_collection(lc)
         
-        values_pc = np.vstack([x_cls_pc, y_cls_pc])
-        kernel_pc = gaussian_kde(values_pc, bw_method=0.35)
-        Z_cls_pc = np.reshape(kernel_pc(pos_pc_flat).T, X_pc.shape)
-        
-        levels_cls_pc = np.linspace(0.02 * Z_cls_pc.max(), 1.00 * Z_cls_pc.max(), 8)
-        
-        g_color = class_styles[cls]['color']
-        max_alpha = 0.65 if cls == 'CO2' else 0.45
-        rgba_color = to_rgba(g_color, alpha=max_alpha)
-        rgba_transparent = (rgba_color[0], rgba_color[1], rgba_color[2], 0.0)
-        cmap_cls_pc = LinearSegmentedColormap.from_list(f'cmap_pc_{cls}', [rgba_transparent, rgba_color])
-        
-        plt.contourf(
-            X_pc, Y_pc, Z_cls_pc,
-            levels=levels_cls_pc,
-            cmap=cmap_cls_pc,
-            zorder=2
+        # Perfectly aligned arrowhead matching the open style in reverse_projection_color_color_arrows.png
+        ax.annotate(
+            '', xy=(x[-1], y[-1]), xytext=(x[-3], y[-3]),
+            arrowprops=dict(arrowstyle='->,head_width=0.45,head_length=0.7', lw=lw, color=cmap(1.0)),
+            zorder=zorder
         )
+
+    # Spline points for continuous gradient trajectory
+    # Panel A: Blue (Water) -> Orange (CO2) -> Red (Organic) -> Purple (Methanol, with gentler bend)
+    pts_A_grad = np.array([
+        [0.48, 0.21],
+        [0.58, 0.28],
+        [0.68, 0.36],
+        [0.78, 0.41],
+        [0.86, 0.45],
+        [0.96, 0.52],
+        [1.06, 0.60],
+        [1.08, 0.68],
+        [1.03, 0.76]
+    ])
+    xA_grad, yA_grad = eval_spline(pts_A_grad, n_eval=500)
+
+    # Panel B: Blue (Water reaching higher up to PC2 ~ 4.8) -> Orange (CO2) -> Red (Organic) -> Purple (Methanol)
+    pts_B_grad = np.array([
+        [2.2, -4.8],
+        [4.5, -2.5],
+        [6.2, 0.0],
+        [7.4, 2.2],
+        [7.2, 4.8],
+        [5.6, 4.6],
+        [3.6, 3.2],
+        [2.2, 1.8],
+        [0.5, 0.0],
+        [-1.5, -1.2],
+        [-3.2, -0.2],
+        [-4.2, 1.0],
+        [-4.8, 2.6],
+        [-5.0, 3.8]
+    ])
+    xB_grad, yB_grad = eval_spline(pts_B_grad, n_eval=500)
+
+    # Helper function to plot Panel A content
+    def render_panel_A(ax, mode='clean'):
+        ax.contour(X, Y, pdf_GMM, levels=gmm_levels, colors='#555555', alpha=0.6, linewidths=1.0, linestyles='--')
+        ax.plot([mu_B[0] - line_len_B * v2_B[0], mu_B[0] + line_len_B * v2_B[0]],
+                [mu_B[1] - line_len_B * v2_B[1], mu_B[1] + line_len_B * v2_B[1]],
+                color='#444444', linestyle=':', linewidth=1.4, alpha=0.85, zorder=3)
+        ax.plot([mu_F[0] - line_len_F * v2_F[0], mu_F[0] + line_len_F * v2_F[0]],
+                [mu_F[1] - line_len_F * v2_F[1], mu_F[1] + line_len_F * v2_F[1]],
+                color='#444444', linestyle=':', linewidth=1.4, alpha=0.85, zorder=3)
+
+        ax.text(0.55, 0.17, 'NIRB$^{-}$', color='#222222', fontsize=13, fontweight='bold', bbox=label_bbox, zorder=6)
+        ax.text(0.63, 0.46, 'NIRB$^{+}$', color='#222222', fontsize=13, fontweight='bold', bbox=label_bbox, zorder=6)
+        ax.text(0.85, 0.48, 'NIRF$^{-}$', color='#222222', fontsize=13, fontweight='bold', bbox=label_bbox, zorder=6)
+        ax.text(0.98, 0.61, 'NIRF$^{+}$', color='#222222', fontsize=13, fontweight='bold', bbox=label_bbox, zorder=6)
+
+        for cls in plot_order:
+            cls_sampled_mask = np.array(sampled_classes_list) == cls
+            x_cls = sampled_des.loc[cls_sampled_mask, 'DES_g-r'].values
+            y_cls = sampled_des.loc[cls_sampled_mask, 'DES_r-z'].values
+            kernel = gaussian_kde(np.vstack([x_cls, y_cls]), bw_method=0.35)
+            Z_cls = np.reshape(kernel(pos_flat).T, X.shape)
+            levels_cls = np.linspace(0.02 * Z_cls.max(), 1.00 * Z_cls.max(), 8)
+            g_color = class_styles[cls]['color']
+            max_alpha = 0.65 if cls == 'CO2' else 0.45
+            rgba_color = to_rgba(g_color, alpha=max_alpha)
+            rgba_transparent = (rgba_color[0], rgba_color[1], rgba_color[2], 0.0)
+            cmap_cls = LinearSegmentedColormap.from_list(f'cmap_{cls}', [rgba_transparent, rgba_color])
+            ax.contourf(X, Y, Z_cls, levels=levels_cls, cmap=cmap_cls, zorder=2)
+
+        for cls in plot_order:
+            cls_mask = np.array(training_classes) == cls
+            if np.any(cls_mask):
+                marker_size = 35 if cls != 'CO2' else 25
+                ax.scatter(train_true_des.loc[cls_mask, 'DES_g-r'], train_true_des.loc[cls_mask, 'DES_r-z'],
+                           color=class_styles[cls]['color'], marker=class_styles[cls]['marker'],
+                           s=marker_size, edgecolor='black', linewidths=0.6, label=class_styles[cls]['label'], zorder=5)
+
+        for item in special_coords:
+            ax.scatter(item['gr'], item['rz'], s=item['size'], color=item['color'],
+                       edgecolor='white', linewidths=0.9, marker=item['marker'], zorder=7, label=item['label'])
+
+        if mode == 'arrows':
+            ax.annotate('', xy=(0.76, 0.46), xytext=(0.48, 0.20),
+                        arrowprops=dict(arrowstyle='->,head_width=0.45,head_length=0.7', lw=2.8, color=arrow_blue_color), zorder=8)
+            ax.annotate('', xy=(1.05, 0.70), xytext=(0.82, 0.40),
+                        arrowprops=dict(arrowstyle='->,head_width=0.45,head_length=0.7', lw=2.8, color=arrow_red_color), zorder=8)
+        elif mode == 'gradient':
+            plot_gradient_curve(ax, xA_grad, yA_grad, cmap_A, lw=2.8, zorder=8)
+
+        ax.set_xlim(0.25, 1.35)
+        ax.set_ylim(-0.1, 1.0)
+        ax.tick_params(axis='both', which='major', labelsize=16)
+        ax.grid(True, linestyle='--', alpha=0.5)
+
+    # Helper function to plot Panel B content
+    def render_panel_B(ax, mode='clean'):
+        for cls in plot_order:
+            cls_sampled_mask = np.array(sampled_classes_list) == cls
+            x_cls_pc = sampled_latent[cls_sampled_mask, 0]
+            y_cls_pc = sampled_latent[cls_sampled_mask, 1]
+            kernel_pc = gaussian_kde(np.vstack([x_cls_pc, y_cls_pc]), bw_method=0.35)
+            Z_cls_pc = np.reshape(kernel_pc(pos_pc_flat).T, X_pc.shape)
+            levels_cls_pc = np.linspace(0.02 * Z_cls_pc.max(), 1.00 * Z_cls_pc.max(), 8)
+            g_color = class_styles[cls]['color']
+            max_alpha = 0.65 if cls == 'CO2' else 0.45
+            rgba_color = to_rgba(g_color, alpha=max_alpha)
+            rgba_transparent = (rgba_color[0], rgba_color[1], rgba_color[2], 0.0)
+            cmap_cls_pc = LinearSegmentedColormap.from_list(f'cmap_pc_{cls}', [rgba_transparent, rgba_color])
+            ax.contourf(X_pc, Y_pc, Z_cls_pc, levels=levels_cls_pc, cmap=cmap_cls_pc, zorder=2)
+
+        for cls in plot_order:
+            cls_mask = np.array(training_classes) == cls
+            if np.any(cls_mask):
+                x_train_pc = latent_data[cls_mask, 0]
+                y_train_pc = latent_data[cls_mask, 1]
+                marker_size = 22 if cls == 'CO2' else 35
+                ax.scatter(x_train_pc, y_train_pc, color=class_styles[cls]['color'],
+                           marker=class_styles[cls]['marker'], s=marker_size,
+                           edgecolor='black', linewidths=0.6, label=class_styles[cls]['label'], zorder=5)
+
+        for item in special_coords:
+            ax.scatter(item['pc1'], item['pc2'], s=item['size'], color=item['color'],
+                       edgecolor='white', linewidths=0.9, marker=item['marker'], zorder=7, label=item['label'])
+
+        if mode == 'arrows':
+            ax.annotate('', xy=(6.8, 3.2), xytext=(1.8, -4.7),
+                        arrowprops=dict(arrowstyle='->,head_width=0.45,head_length=0.7', lw=2.8, color=arrow_blue_color), zorder=8)
+            ax.annotate('', xy=(-5.6, 4.0), xytext=(-1.8, -1.8),
+                        arrowprops=dict(arrowstyle='->,head_width=0.45,head_length=0.7', lw=2.8, color=arrow_red_color), zorder=8)
+        elif mode == 'gradient':
+            plot_gradient_curve(ax, xB_grad, yB_grad, cmap_B, lw=2.8, zorder=8)
+
+        ax.set_xlim(pc1_lim)
+        ax.set_ylim(pc2_lim)
+        ax.tick_params(axis='both', which='major', labelsize=16)
+        ax.grid(True, linestyle='--', alpha=0.5)
+
+    import matplotlib.lines as mlines
+    class_handles = [
+        mlines.Line2D([], [], color=class_styles[cls]['color'], marker=class_styles[cls]['marker'], linestyle='None', markersize=9, label=class_styles[cls]['label'])
+        for cls in ['Water', 'CO2', 'Organic', 'Methanol']
+    ]
+    outlier_handles = [
+        mlines.Line2D([], [], color=item['color'], marker=item['marker'], linestyle='None', markersize=11, label=item['label'])
+        for item in special_coords
+    ]
+
+    # --- 1. Generate Individual 2-Panel Plots ---
+    plot_modes = [
+        {'mode': 'clean', 'suffix': ''},
+        {'mode': 'arrows', 'suffix': '_arrows'},
+        {'mode': 'gradient', 'suffix': '_gradient'}
+    ]
+
+    for pcfg in plot_modes:
+        pmode = pcfg['mode']
+        suffix = pcfg['suffix']
+        plt.figure(figsize=(14.5, 6.5))
         
-    # 2. Overlay training set objects in PC1 vs PC2 space (s=35, CO2 s=22)
-    for cls in plot_order:
-        cls_mask = np.array(training_classes) == cls
-        if np.any(cls_mask):
-            x_train_pc = latent_data[cls_mask, 0]
-            y_train_pc = latent_data[cls_mask, 1]
-            
-            marker_size = 22 if cls == 'CO2' else 35
-            plt.scatter(
-                x_train_pc,
-                y_train_pc,
-                color=class_styles[cls]['color'],
-                marker=class_styles[cls]['marker'],
-                s=marker_size,
-                edgecolor='black',
-                linewidths=0.6,
-                label=class_styles[cls]['label'],
-                zorder=5
-            )
-            
-    # 3. Highlight specific special targets (SO277, RJ103, BP81, QV89) in Panel B
-    for item in special_coords:
-        plt.scatter(
-            item['pc1'], item['pc2'],
-            s=item['size'], color=item['color'],
-            edgecolor='white', linewidths=0.9,
-            marker=item['marker'], zorder=7,
-            label=item['label']
-        )
-            
-    plt.xlabel('PC 1', fontsize=20, fontweight='bold')
-    plt.ylabel('PC 2', fontsize=20, fontweight='bold')
-    plt.xlim(pc1_lim)
-    plt.ylim(pc2_lim)
-    plt.tick_params(axis='both', which='major', labelsize=16)
-    plt.grid(True, linestyle='--', alpha=0.5)
-    
+        # Panel A
+        ax1 = plt.subplot(1, 2, 1)
+        render_panel_A(ax1, mode=pmode)
+        ax1.set_xlabel('$g - r$', fontsize=20, fontweight='bold')
+        ax1.set_ylabel('$r - z$', fontsize=20, fontweight='bold')
+        leg1 = ax1.legend(handles=class_handles, frameon=True, fontsize=13, loc='upper left')
+        ax1.add_artist(leg1)
+        ax1.legend(handles=outlier_handles, frameon=True, fontsize=11, loc='lower right')
+        
+        # Panel B
+        ax2 = plt.subplot(1, 2, 2)
+        render_panel_B(ax2, mode=pmode)
+        ax2.set_xlabel('PC 1', fontsize=20, fontweight='bold')
+        ax2.set_ylabel('PC 2', fontsize=20, fontweight='bold')
+        
+        plt.tight_layout()
+        plot_out_path_png = os.path.join(plots_dir, f"reverse_projection_color_color{suffix}.png")
+        plot_out_path_pdf = os.path.join(plots_dir, f"reverse_projection_color_color{suffix}.pdf")
+        plt.savefig(plot_out_path_png, dpi=250)
+        plt.savefig(plot_out_path_pdf, bbox_inches='tight')
+        plt.close()
+        print(f"Saved plots to:\n  - {plot_out_path_png}\n  - {plot_out_path_pdf}")
+
+    # --- 2. Generate Combined 4-Panel Plot (Sharing x-axes across rows) ---
+    fig, axes = plt.subplots(2, 2, figsize=(14.5, 12.0), sharex='col')
+
+    # Row 0: Straight arrows
+    render_panel_A(axes[0, 0], mode='arrows')
+    axes[0, 0].set_ylabel('$r - z$', fontsize=20, fontweight='bold')
+    axes[0, 0].tick_params(labelbottom=False)
+    leg1 = axes[0, 0].legend(handles=class_handles, frameon=True, fontsize=12.5, loc='upper left')
+    axes[0, 0].add_artist(leg1)
+    axes[0, 0].legend(handles=outlier_handles, frameon=True, fontsize=10.5, loc='lower right')
+
+    render_panel_B(axes[0, 1], mode='arrows')
+    axes[0, 1].set_ylabel('PC 2', fontsize=20, fontweight='bold')
+    axes[0, 1].tick_params(labelbottom=False)
+
+    # Row 1: Gradient curve (Bottom panels show shared x-labels)
+    render_panel_A(axes[1, 0], mode='gradient')
+    axes[1, 0].set_xlabel('$g - r$', fontsize=20, fontweight='bold')
+    axes[1, 0].set_ylabel('$r - z$', fontsize=20, fontweight='bold')
+
+    render_panel_B(axes[1, 1], mode='gradient')
+    axes[1, 1].set_xlabel('PC 1', fontsize=20, fontweight='bold')
+    axes[1, 1].set_ylabel('PC 2', fontsize=20, fontweight='bold')
+
     plt.tight_layout()
-    
-    plot_out_path_png = os.path.join(plots_dir, "reverse_projection_color_color.png")
-    plot_out_path_pdf = os.path.join(plots_dir, "reverse_projection_color_color.pdf")
-    
-    plt.savefig(plot_out_path_png, dpi=250)
-    plt.savefig(plot_out_path_pdf, bbox_inches='tight')
+
+    four_panel_png = os.path.join(plots_dir, "reverse_projection_color_color_4panel.png")
+    four_panel_pdf = os.path.join(plots_dir, "reverse_projection_color_color_4panel.pdf")
+    plt.savefig(four_panel_png, dpi=250)
+    plt.savefig(four_panel_pdf, bbox_inches='tight')
     plt.close()
-    print(f"Saved plots to:\n  - {plot_out_path_png}\n  - {plot_out_path_pdf}")
-    
-    # Copy all files to artifact directory
-    os.system(f"cp {csv_out_path} {artifact_dir}/")
-    os.system(f"cp {yaml_out_path} {artifact_dir}/")
-    os.system(f"cp {plot_out_path_png} {artifact_dir}/")
-    os.system(f"cp {plot_out_path_pdf} {artifact_dir}/")
-    print(f"Copied all outputs to artifact directory:\n  {artifact_dir}")
+    print(f"Saved 4-panel plot to:\n  - {four_panel_png}\n  - {four_panel_pdf}")
+
+    if artifact_dir and os.path.exists(artifact_dir):
+        for sfx in ['', '_arrows', '_gradient', '_4panel']:
+            os.system(f"cp {plots_dir}/reverse_projection_color_color{sfx}.png {artifact_dir}/")
+            os.system(f"cp {plots_dir}/reverse_projection_color_color{sfx}.pdf {artifact_dir}/")
+        os.system(f"cp {csv_out_path} {artifact_dir}/")
+        os.system(f"cp {yaml_out_path} {artifact_dir}/")
+        print(f"Copied all outputs to artifact directory:\n  {artifact_dir}")
 
 if __name__ == '__main__':
     main()

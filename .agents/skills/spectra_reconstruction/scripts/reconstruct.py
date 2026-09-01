@@ -65,11 +65,14 @@ def main():
         norm_wl = 0.75
         norm_band = 'i'
     elif args.system == "DES":
-        if "g-r" in color_dict and "r-z" in color_dict:
+        if "g-r" in color_dict and "r-i" in color_dict and ("r-z" in color_dict or "i-z" in color_dict or "iz" in color_dict):
+            bands_subset = ["g", "r", "i", "z"]
+            model_name = "des_griz_reconstructor"
+        elif "g-r" in color_dict and "r-z" in color_dict:
             bands_subset = ["g", "r", "z"]
             model_name = "des_grz_reconstructor"
         else:
-            print("Error: For DES system, 'g-r' and 'r-z' colors are required.")
+            print("Error: For DES system, 'g-r' and 'r-z' colors (or 'g-r', 'r-i', 'r-z') are required.")
             sys.exit(1)
         norm_wl = 0.926
         norm_band = 'z'
@@ -79,8 +82,15 @@ def main():
     
     # 2. Check/Train model
     config_path = os.path.join(model_dir, "config.pkl")
-    if not os.path.exists(config_path):
-        print(f"Model config not found. Training new model '{model_name}' on the fly...")
+    all_predictors_exist = os.path.exists(config_path)
+    if all_predictors_exist:
+        for i in range(10):
+            if not os.path.exists(os.path.join(model_dir, f"predictor_pc_{i}", "predictor.pkl")):
+                all_predictors_exist = False
+                break
+
+    if not all_predictors_exist:
+        print(f"Model or predictors not found in '{model_name}'. Training new model on the fly...")
         processed_dir = os.path.join(project_root, "data", "processed")
         spectra, file_names, wl_grid = load_and_preprocess_spectra(processed_dir, norm_wl=norm_wl)
         config, predictors, correlation_matrix = train_reconstructor_model(
@@ -174,7 +184,10 @@ def main():
         })
         
         ref_norm, ref_err_norm = color_to_spec(gr_val, ri_val, rz_val, gr_err, ri_err, rz_err, norm_band=norm_band)
-        filters_wl = np.array([0.481, 0.622, 0.756, 0.868])
+        if args.system == "DES":
+            filters_wl = np.array([0.473, 0.642, 0.784, 0.926])
+        else:
+            filters_wl = np.array([0.481, 0.622, 0.756, 0.868])
         
     elif bands_subset == ["g", "r", "i"]:
         ri_val, ri_err = color_dict["r-i"]
@@ -296,6 +309,10 @@ def main():
         # 1. Background prior distribution (TNO reference set)
         prior_pc1, prior_pc2 = None, None
         base_pca_path = os.path.join(os.path.dirname(model_dir), "base_pca_kde.pkl")
+        if abs(norm_wl - 0.926) < 1e-3:
+            cand_path = os.path.join(os.path.dirname(model_dir), "base_pca_kde_0926.pkl")
+            if os.path.exists(cand_path):
+                base_pca_path = cand_path
         if os.path.exists(base_pca_path):
             with open(base_pca_path, "rb") as f:
                 base_data = pickle.load(f)
